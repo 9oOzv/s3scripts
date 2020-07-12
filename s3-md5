@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+
+BUCKET="<bucket-name>"
+
+parse_md5() {
+    line="$1"
+    echo "$(echo "$line" | sed -E 's/^([0-9a-f]+) +\.\/(.*)$/\1/')"
+}
+
+parse_filename() {
+    line="$1"
+    echo "$(echo "$line" | sed -E 's/^([0-9a-f]+) +\.\/(.*)$/\2/')"
+}
+
+filter_s3cmd_errors() {
+    grep -v '404' >&2
+}
+
+get_object_md5() {
+    local filename="$1"
+    (
+        s3cmd info "s3://$BUCKET/$filename" | grep "MD5 sum:" | sed -E 's/ *MD5 sum: +([0-9a-f]+)$/\1/g'
+    ) 2> >(filter_s3cmd_errors)
+}
+
+md5sum_files() {
+    find . -maxdepth 1 -type f -exec md5sum '{}' \;
+}
+
+report_missing() {
+    local filename="$1"
+    local file_md5="$2"
+    local object_md5="                                "
+    printf "[MS] file: %s    object: %s    name: %s\n" "$file_md5" "$object_md5" "$filename"
+}
+
+report_ok() {
+    local filename="$1"
+    local file_md5="$2"
+    local object_md5="$3"
+    printf "[OK] file: %s    object: %s    name: %s\n" "$file_md5" "$object_md5" "$filename"
+}
+
+report_mismatch() {
+    local filename="$1"
+    local file_md5="$2"
+    local object_md5="$3"
+    printf "[ER] file: %s    object: %s    name: %s\n" "$file_md5" "$object_md5" "$filename"
+}
+
+validate_checksum() {
+    filename="$1"
+    file_md5="$2"
+    object_md5="$(get_object_md5 "$filename")"
+    if [ ! "$object_md5" ]; then
+        report_missing "$filename" "$file_md5"
+    elif [ "$file_md5" == "$object_md5" ]; then
+        report_ok "$filename" "$file_md5" "$object_md5"
+    elif [ "$file_md5" != "$object_md5" ]; then
+        report_mismatch "$filename" "$file_md5" "$object_md5"
+    fi
+}
+
+validate_checksums() {
+    while read -r line; do
+        local md5=$(parse_md5 "$line")
+        local filename="$(parse_filename "$line")"
+        validate_checksum "$filename" "$md5"
+    done < <(md5sum_files)
+}
+
+validate_checksums
