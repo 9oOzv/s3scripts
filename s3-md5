@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 BUCKET="<bucket-name>"
+
 
 parse_md5() {
     line="$1"
@@ -68,5 +71,20 @@ validate_checksums() {
         validate_checksum "$filename" "$md5"
     done < <(md5sum_files)
 }
+
+
+
+while [ "$#" -ge 1 ]; do
+    case "$1" in
+        -b|--bucket)
+            BUCKET="$2"
+            shift 2
+            ;;
+        *)
+            printf "Incalid argument: %s\n" "$1"
+            exit 1
+            ;;
+    esac
+done
 
 validate_checksums
