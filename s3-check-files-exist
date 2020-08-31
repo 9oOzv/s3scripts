@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+BUCKET="<bucket-name>"
+
+check_files_exist() {
+    files="$(find . | sed -E 's/^\.\///')"
+    while read -r f; do
+        if [ -d "$f" ]; then
+            continue
+        fi
+        s3info="$(s3store info "s3://$BUCKET/$f" 2>/dev/null)"
+        filesize="$({ echo "$s3info" | grep 'File size' | sed -E 's/^ +File size: +([0-9]+)$/\1/'; } 2>/dev/null)"
+        md5="$({ echo "$s3info" | grep 'MD5 sum' | sed -E 's/^ +MD5 sum: +([0-9a-f]+)$/\1/'; } 2>/dev/null)"
+        printf "%-32.32s %-12.12s %s\n" "$md5" "$filesize" "$f"
+    done <<<"$files"
+}
+
+while [ "$#" -ge 1 ]; do
+    case "$1" in
+        -b|--bucket)
+            BUCKET="$2"
+            shift 2
+            ;;
+        *)
+            printf "Invalid argument: %s\n" "$1"
+            exit 1
+            ;;
+    esac
+done
+
+check_files_exist
