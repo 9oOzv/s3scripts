@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
+D="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+. "$D/common/common"
 
-BUCKET="<bucket-name>"
+add_opt "BUCKET" "b bucket" "" "bucket" "Bucket name"
+parse_cmdline "$@"
+usage_if_args_missing
 
 check_files_exist() {
     files="$(find . | sed -E 's/^\.\///')"
